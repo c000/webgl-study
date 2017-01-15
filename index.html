@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <script id="vs" type="x-shader/x-vertex">
+        attribute vec3 position;
+        attribute vec2 texpos;
+        varying vec2 vTexpos;
+        // uniform vec2 mousePos;
+        void main(void) {
+            vTexpos = texpos; //  - mousePos;
+            gl_Position = vec4(position * 1.0, 1.0);
+        }
+    </script>
+    <script id="fs" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec2 vTexpos;
+        uniform vec2 mousePos;
+        const int loops = 0xFF;
+        float mandelblot_orbit(vec2 pos, vec2 target) {
+            vec2 acc = vec2(0.0, 0.0);
+            int calcs = loops;
+            float dmin = 1.0e10;
+            for (int i = 0; i < loops; ++i) {
+                float re = acc.x;
+                float im = acc.y;
+                acc = vec2(re * re - im * im, 2.0 * re * im) + pos;
+                float d = distance(target, acc);
+                dmin = min(d, dmin);
+            }
+            return dmin;
+        }
+        void main(void) {
+            vec2 pos = vTexpos;
+            float d = mandelblot_orbit(pos, mousePos);
+            vec3 l = vec3(1.0, .5, .2) / d * 0.1;
+            gl_FragColor = vec4(l, 1.0);
+        }
+    </script>
+</head>
+<body>
+    <canvas id='my-canvas' width="1024" height="1024"></canvas>
+    <script>
+    (function() {
+        var create_program = function(gl) {
+            var vShader = gl.createShader(gl.VERTEX_SHADER);
+            var fShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(vShader, document.getElementById('vs').text);
+            gl.compileShader(vShader);
+            console.log(gl.getShaderInfoLog(vShader));
+            gl.shaderSource(fShader, document.getElementById('fs').text);
+            gl.compileShader(fShader);
+            console.log(gl.getShaderInfoLog(fShader));
+
+            var program = gl.createProgram();
+            gl.attachShader(program, vShader);
+            gl.attachShader(program, fShader);
+            gl.linkProgram(program);
+            console.log(gl.getProgramInfoLog(program));
+            gl.useProgram(program);
+            return program;
+        };
+        var body = document.getElementsByTagName('body')[0];
+        var canvas = document.getElementById('my-canvas');
+        var gl = canvas.getContext('webgl');
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+        var program = create_program(gl);
+
+        var attrLocation = gl.getAttribLocation(program, 'position');
+        var attrStride = 3;
+
+        var vertex_pos = [
+            -1.0, -1.0, 0.0,
+             1.0, -1.0, 0.0,
+             1.0,  1.0, 0.0,
+            -1.0,  1.0, 0.0
+        ];
+        var tex_pos = [
+            -2.0,  2.0,
+             2.0,  2.0,
+             2.0, -2.0,
+            -2.0, -2.0
+        ];
+        var vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertex_pos), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(attrLocation);
+        gl.vertexAttribPointer(attrLocation, attrStride, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        var texpos_vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texpos_vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tex_pos), gl.STATIC_DRAW);
+        attrLocation = gl.getAttribLocation(program, 'texpos');
+        gl.enableVertexAttribArray(attrLocation);
+        gl.vertexAttribPointer(attrLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        var render = function(gl) {
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.flush();
+        }
+
+        body.onmousemove = function(e) {
+            var arr =
+                [ e.clientX / 256.0 - 2.0
+                , e.clientY / 256.0 - 2.0
+                ];
+            // console.log(arr);
+            gl.uniform2fv(gl.getUniformLocation(program, 'mousePos'),
+                arr);
+            render(gl);
+        }
+        body.onresize = function(e) {
+            console.log(e);
+        }
+    })();
+    </script>
+</body>
+</html>
