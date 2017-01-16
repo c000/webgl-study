@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <script id="vs" type="x-shader/x-vertex">
+        attribute vec3 position;
+        attribute vec2 texpos;
+        varying vec2 vTexpos;
+        // uniform vec2 mousePos;
+        void main(void) {
+            vTexpos = texpos * .5; //  - mousePos;
+            gl_Position = vec4(position * 1.0, 1.0);
+        }
+    </script>
+    <script id="fs" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec2 vTexpos;
+        uniform vec2 mousePos;
+        uniform float time;
+        const int loops = 0x10;
+        vec2 mv2(vec2 v1, vec2 v2) {
+            return vec2(v1.x * v2.x - v1.y * v2.y, v1.x * v2.y + v1.y * v2.x);
+        }
+        float mandelblot_orbit(vec2 pos, vec2 target) {
+            vec2 acc = pos; // vec2(0.0, 0.0);
+            int calcs = loops;
+            float dmin = 1.0e10;
+            for (int i = 0; i < loops; ++i) {
+                float re = acc.x;
+                float im = acc.y;
+                // acc = vec2(re * re - im * im, 2.0 * re * im) + pos;
+                float t = radians(mod(time, 47.) / 47. * 360.);
+                float t2 = radians(mod(time, 31.) / 31. * 360.);
+                vec2 constant = vec2(-.4, .6) + vec2(.2 * sin(t2), .1 * sin(t));
+                acc = mv2(acc, mv2(acc, acc)) + constant;
+
+                float d = distance(target, acc);
+                dmin = min(d, dmin);
+
+                // float d = abs(dot(target - acc, normalize(vec2(2.0, 1.0))));
+                // float d2 = abs(dot(target - acc, normalize(vec2(-1.0, 2.0))));
+                // dmin = min(d2, min(d, dmin));
+
+                // if (2. < length(acc)) {
+                //     calcs = i;
+                //     break;
+                // }
+            }
+            // return float(calcs) / float(loops);
+            return dmin;
+        }
+        void main(void) {
+            vec2 pos = vTexpos;
+            float d = mandelblot_orbit(pos, vec2(-.24, .27));
+            // float d = abs(dot(pos - mousePos, normalize(vec2(1.0, 0.0))));
+            vec3 l = vec3(1.0, .5, .01) / d * 0.1;
+            // vec3 l = vec3(.2, .01, 1.0) / d * 0.1;
+            gl_FragColor = vec4(l, 1.0);
+        }
+    </script>
+</head>
+<body style="margin: 0;">
+    <canvas id='my-canvas' width="1024" height="1024" style="width:100%;"></canvas>
+    <script>
+    (function() {
+        var create_program = function(gl) {
+            var vShader = gl.createShader(gl.VERTEX_SHADER);
+            var fShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(vShader, document.getElementById('vs').text);
+            gl.compileShader(vShader);
+            console.log(gl.getShaderInfoLog(vShader));
+            gl.shaderSource(fShader, document.getElementById('fs').text);
+            gl.compileShader(fShader);
+            console.log(gl.getShaderInfoLog(fShader));
+
+            var program = gl.createProgram();
+            gl.attachShader(program, vShader);
+            gl.attachShader(program, fShader);
+            gl.linkProgram(program);
+            console.log(gl.getProgramInfoLog(program));
+            gl.useProgram(program);
+            return program;
+        };
+        var body = document.getElementsByTagName('body')[0];
+        var canvas = document.getElementById('my-canvas');
+        var gl = canvas.getContext('webgl');
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+        var program = create_program(gl);
+
+        var attrLocation = gl.getAttribLocation(program, 'position');
+        var attrStride = 3;
+
+        var vertex_pos = [
+            -1.0, -1.0, 0.0,
+             1.0, -1.0, 0.0,
+             1.0,  1.0, 0.0,
+            -1.0,  1.0, 0.0
+        ];
+        var tex_pos = [
+            -2.0,  2.0,
+             2.0,  2.0,
+             2.0, -2.0,
+            -2.0, -2.0
+        ];
+        var vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertex_pos), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(attrLocation);
+        gl.vertexAttribPointer(attrLocation, attrStride, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        var texpos_vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, texpos_vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tex_pos), gl.STATIC_DRAW);
+        attrLocation = gl.getAttribLocation(program, 'texpos');
+        gl.enableVertexAttribArray(attrLocation);
+        gl.vertexAttribPointer(attrLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        var render = function(gl) {
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+            gl.flush();
+        }
+
+        var mousePosition = [0.0, 0.0];
+        body.onmousemove = function(e) {
+            mousePosition =
+                [ e.clientX / 256.0 - 2.0
+                , e.clientY / 256.0 - 2.0
+                ];
+        }
+
+        var render_loop = function() {
+            gl.uniform2fv(
+                gl.getUniformLocation(program, 'mousePos'),
+                mousePosition);
+            gl.uniform1f(
+                gl.getUniformLocation(program, 'time'),
+                ((new Date()).getTime() % 0xFFFFFF) / 1000.0
+            );
+            render(gl);
+            setTimeout(render_loop, 16);
+        };
+        render_loop();
+    })();
+    </script>
+</body>
+</html>
