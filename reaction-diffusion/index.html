@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec3 position;
+        attribute vec3 color;
+        attribute vec2 texPosition;
+        varying vec3 vColor;
+        varying vec2 vTexPosition;
+        void main() {
+            vColor = color;
+            vTexPosition = texPosition;
+            gl_Position = vec4(position, 1.0);
+        }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        uniform sampler2D texture;
+        varying vec3 vColor;
+        varying vec2 vTexPosition;
+        uniform float time;
+        void main() {
+            gl_FragColor = vec4(vColor, 1.0)
+                * 3.0
+                * texture2D(texture, vTexPosition).y;
+        }
+    </script>
+
+    <script id="tex-vertex-shader" type="x-shader/x-vertex">
+        attribute vec2 position;
+        varying vec2 vTexPosition;
+        void main() {
+            vTexPosition = (position + 1.0) * 0.5;
+            gl_Position = vec4(position, 0.5, 1.0);
+        }
+    </script>
+
+    <script id="tex-fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec2 vTexPosition;
+        uniform sampler2D lastTex;
+        uniform float delta;
+        uniform float f;
+        uniform float k;
+        uniform float alpha;
+        uniform float seed;
+        vec4 laplacian(vec2 pos) {
+            float d = delta;
+            vec4 acc = vec4(0.0, 0.0, 0.0, 0.0);
+            acc += texture2D(lastTex, pos + vec2( d,  0));
+            acc += texture2D(lastTex, pos + vec2(-d,  0));
+            acc += texture2D(lastTex, pos + vec2( 0,  d));
+            acc += texture2D(lastTex, pos + vec2( 0, -d));
+            return acc / 4.0 - texture2D(lastTex, pos);
+        }
+        void main() {
+            vec4 v = texture2D(lastTex, vTexPosition);
+            vec4 l = laplacian(vTexPosition);
+            vec2 diff = vec2(
+                0.209 * l.x - v.x*v.y*v.y + f * (1.0 - v.x),
+                0.105 * l.y + v.x*v.y*v.y - (f + k) * v.y);
+            if (length(vTexPosition - 0.5) < seed) {
+                gl_FragColor = vec4(1.0, 0.0, 0.0, 0.0);
+            } else {
+                gl_FragColor = v + alpha * vec4(diff, 0.0, 0.0);
+            }
+        }
+    </script>
+</head>
+<body style="background: #111;">
+    <canvas id="my-canvas" width="512" height="512" style="display:block;"></canvas>
+    <script src="reaction-diffusion.js"></script>
+</body>
+</html>
