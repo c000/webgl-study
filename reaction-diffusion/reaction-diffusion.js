@@ -104,7 +104,7 @@
         -1,  1
     ]), gl.STATIC_DRAW);
 
-    var tSize = 256;
+    var tSize = 512;
     var textureData = [
         new Float32Array(tSize * tSize * 4),
         new Float32Array(tSize * tSize * 4)
@@ -114,7 +114,8 @@
             var index = 4 * (y * tSize + x);
             var xc = x - tSize / 2;
             var yc = y - tSize / 2;
-            if (xc*xc+yc*yc < 64) {
+            var len2 = xc*xc + yc*yc;
+            if (25 < len2 && len2 < 64) {
                 textureData[0][index+1] = 1;
             } else {
                 textureData[0][index+0] = 1;
@@ -142,10 +143,15 @@
         framebuffer[1] = f0;
     };
 
+    try {
+        var params = window.location.href.match(/.*\?(.*)$/)[1].split(',');
+    } catch (e) {
+        var params = [];
+    }
     var param = {
-        f: 0.049,
-        k: 0.0619,
-        alpha: 3,
+        f: params[0] || 0.006,
+        k: params[1] || 0.025,
+        alpha: 0.5,
         seed: 0
     };
 
@@ -175,6 +181,7 @@
         gl.bindTexture(gl.TEXTURE_2D, texture[0]);
         gl.uniform1i(gl.getUniformLocation(program, "texture"), 0);
         gl.uniform1f(gl.getUniformLocation(program, "time"), (new Date() - start) * 1e-3);
+        gl.uniform1f(gl.getUniformLocation(program, "delta"), 1.0 / tSize);
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
         gl.flush();
